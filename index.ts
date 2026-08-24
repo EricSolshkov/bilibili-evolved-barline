@@ -272,7 +272,10 @@ const buildVolumeSlider = (): { el: HTMLElement; refresh: () => void } => {
     return Math.round(Math.min(1, Math.max(0, ratio)) * 100)
   }
   const refresh = () => {
-    const muted = Boolean(currentConfig?.metronomeMuted)
+    const muted =
+      !currentConfig ||
+      Boolean(currentConfig?.metronomeMuted) ||
+      (currentConfig?.metronomeVolume ?? 1) <= 0
     const value = muted ? 0 : Math.round((currentConfig?.metronomeVolume ?? 1) * 100)
     setFill(value)
   }
@@ -314,6 +317,8 @@ const setupVolumeTooltip = async () => {
     interactive: true,
     placement: 'top',
     arrow: false,
+    onShow: () => refresh(),
+    onShown: () => refresh(),
   })
 }
 
