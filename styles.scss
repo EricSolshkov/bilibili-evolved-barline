@@ -60,6 +60,7 @@ body.barline-active.barline-configured.barline-metronome-on
   gap: inherit;
 }
 .barline-row {
+  justify-content: center;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -208,6 +209,215 @@ body.barline-active.barline-configured.barline-metronome-on
 }
 .barline-actions button.danger:hover {
   background: rgba(255, 95, 95, 0.15);
+}
+/* 段落表格 */
+.barline-table-wrap {
+  height: 235px;
+  overflow-y: auto;
+}
+.barline-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.barline-table.barline-table-head {
+  margin-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.barline-table th,
+.barline-table td {
+  border: 1px solid #333;
+  padding: 6px 8px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 13px;
+}
+.barline-table th {
+  background: #2a2f36;
+  color: #ccc;
+  font-weight: 600;
+  user-select: none;
+}
+.barline-table th.barline-col-edit {
+  cursor: pointer;
+}
+.barline-table th.barline-col-edit:hover {
+  background: #333a41;
+  color: #00aeec;
+}
+.barline-table input[type='number'],
+.barline-table input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+  background: #121417;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 4px 6px;
+  min-width: 0;
+}
+.barline-table input[type='number']::-webkit-outer-spin-button,
+.barline-table input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.barline-table input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.barline-table input:focus {
+  border-color: #00aeec;
+  outline: none;
+}
+.barline-table .barline-tap-slot {
+  width: 16px;
+}
+.barline-seg-remove2 {
+  color: #eee;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.barline-seg-remove2:hover {
+  color: #ff5f5f;
+}
+.barline-add-row {
+  width: 100%;
+  margin-top: 8px;
+}
+.barline-add-row button {
+  width: 100%;
+  background: #2a2f36;
+  color: #eee;
+  border: 1px solid #3a4048;
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+}
+.barline-add-row button:hover {
+  background: #333a41;
+}
+.barline-firstbeat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.barline-firstbeat input {
+  flex: 1;
+  min-width: 0;
+}
+.barline-firstbeat-btns {
+  display: inline-flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.barline-firstbeat-btns button {
+  background: #2a2f36;
+  color: #eee;
+  border: 1px solid #3a4048;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.barline-firstbeat-btns button:hover {
+  background: #333a41;
+  color: #00aeec;
+}
+.barline-tapbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #1a1e24;
+}
+.barline-tapbar-title {
+  color: #8b949e;
+  font-size: 12px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.barline-tapbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #00aeec;
+  border: 1px solid #00aeec;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.barline-tapbar-btn:hover:not(:disabled) {
+  background: rgba(0, 174, 236, 0.15);
+}
+.barline-tapbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.barline-tapbar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+}
+.barline-tap-value {
+  color: #8b949e;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  min-width: 72px;
+  text-align: center;
+}
+.barline-tap-value.active {
+  color: #00aeec;
+  font-weight: 600;
+}
+.barline-tapbar-group {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 2px;
+}
+.barline-tapbar-group button {
+  background: #2a2f36;
+  color: #eee;
+  border: 1px solid #3a4048;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.barline-tapbar-group button:hover:not(:disabled) {
+  background: #333a41;
+}
+.barline-tapbar-group button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.barline-tapbar-checkgroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.barline-tapbar-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ccc;
+  font-size: 13px;
+  cursor: pointer;
+}
+.barline-tapbar-check input {
+  accent-color: #00aeec;
 }
 .be-dialog-header {
   background-color: #1f2328;

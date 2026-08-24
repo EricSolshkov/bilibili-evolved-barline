@@ -1,98 +1,143 @@
 <template>
   <div class="barline-editor">
-    <div class="barline-seg-container">
-      <div v-for="(segment, index) in segments" :key="index" class="barline-seg">
-        <div class="barline-seg-title">
-          {{ `段落 ${index + 1}` }}
-          <button
-            v-if="index !== 0"
-            type="button"
-            class="barline-seg-remove"
-            title="删除"
-            @click="removeSegment(index)"
+    <span class="barline-hint">点击表头批量修改</span>
+    <table class="barline-table barline-table-head">
+      <thead>
+        <tr>
+          <th style="width: 44px">序号</th>
+          <th
+            class="barline-col-edit"
+            style="width: 90px"
+            title="点击整列修改"
+            @click="batchEdit('bpm')"
           >
-            ✕
-          </button>
-        </div>
-        <div class="barline-row">
-          <label>BPM</label>
-          <input
-            type="number"
-            :min="BPM_MIN"
-            :max="BPM_MAX"
-            step="1"
-            :value="segment.bpm"
-            style="max-width: 76px"
-            @input="onBpmInput(index, $event)"
-            @change="onBpmChange(index, $event)"
-          />
-          <button type="button" @click="tapSegment(index)">跟着节拍点击</button>
-        </div>
-        <div class="barline-row">
-          <label>拍号</label>
-          <input
-            type="number"
-            :min="NUMERATOR_MIN"
-            :max="NUMERATOR_MAX"
-            step="1"
-            :value="segment.numerator"
-            style="max-width: 76px"
-            @input="onNumeratorInput(index, $event)"
-            @change="onNumeratorChange(index, $event)"
-          />
-          <span>/</span>
-          <input
-            type="text"
-            inputmode="numeric"
-            :value="segment.denominator"
-            style="max-width: 56px"
-            @input="onDenominatorInput(index, $event)"
-            @change="onDenominatorChange(index, $event)"
-          />
-        </div>
-        <div v-if="index === 0" class="barline-row">
-          <div class="barline-col">
-            <div>
-              <label>第一拍位置</label>
+            BPM
+          </th>
+          <th
+            class="barline-col-edit"
+            style="width: 70px"
+            title="点击整列修改"
+            @click="batchEdit('numerator')"
+          >
+            拍号分子
+          </th>
+          <th
+            class="barline-col-edit"
+            style="width: 70px"
+            title="点击整列修改"
+            @click="batchEdit('denominator')"
+          >
+            拍号分母
+          </th>
+          <th>生效小节</th>
+          <th style="width: 40px"></th>
+        </tr>
+      </thead>
+    </table>
+    <div class="barline-table-wrap">
+      <table class="barline-table">
+        <tbody>
+          <tr v-for="(segment, index) in segments" :key="index">
+            <td style="width: 44px">{{ index + 1 }}</td>
+            <td style="width: 90px">
+              <input
+                type="number"
+                :min="BPM_MIN"
+                :max="BPM_MAX"
+                step="1"
+                :value="segment.bpm"
+                @input="onBpmInput(index, $event)"
+                @change="onBpmChange(index, $event)"
+              />
+            </td>
+            <td style="width: 70px">
+              <input
+                type="number"
+                :min="NUMERATOR_MIN"
+                :max="NUMERATOR_MAX"
+                step="1"
+                :value="segment.numerator"
+                @input="onNumeratorInput(index, $event)"
+                @change="onNumeratorChange(index, $event)"
+              />
+            </td>
+            <td style="width: 70px">
               <input
                 type="text"
-                :value="formatTime(segment.firstBeatTime ?? 0)"
-                style="max-width: 120px"
-                placeholder="m:ss.mmm"
-                @change="onFirstBeatChange($event)"
+                inputmode="numeric"
+                :value="segment.denominator"
+                @input="onDenominatorInput(index, $event)"
+                @change="onDenominatorChange(index, $event)"
               />
-              <button type="button" title="更早一拍" @click="nudgeFirstBeat(-1)">往前一拍</button>
-              <button type="button" title="更晚一拍" @click="nudgeFirstBeat(1)">往后一拍</button>
-            </div>
-            <div class="barline-hint">第一拍位置会随打拍子变动</div>
-          </div>
-        </div>
-        <div v-else class="barline-row">
-          <label>生效小节</label>
-          <span>第</span>
-          <input
-            type="number"
-            min="2"
-            step="1"
-            :value="segment.startBar ?? 2"
-            style="max-width: 76px"
-            @input="onStartBarInput(index, $event)"
-            @change="onStartBarChange(index, $event)"
-          />
-          <span>小节</span>
-        </div>
-      </div>
+            </td>
+            <td>
+              <div v-if="index === 0" class="barline-firstbeat">
+                第一拍时间
+                <input
+                  type="text"
+                  :value="formatTime(segment.firstBeatTime ?? 0)"
+                  placeholder="m:ss.mmm"
+                  @change="onFirstBeatChange($event)"
+                />
+                <span class="barline-firstbeat-btns">
+                  <button type="button" title="往前一拍" @click="nudgeFirstBeat(-1)">◀</button>
+                  <button type="button" title="往后一拍" @click="nudgeFirstBeat(1)">▶</button>
+                </span>
+              </div>
+              <input
+                v-else
+                type="number"
+                min="2"
+                step="1"
+                :value="segment.startBar ?? 2"
+                @input="onStartBarInput(index, $event)"
+                @change="onStartBarChange(index, $event)"
+              />
+            </td>
+            <td style="width: 40px" class="barline-tap-slot">
+              <button
+                v-if="index !== 0"
+                class="barline-seg-remove2"
+                title="删除"
+                @click="removeSegment(index)"
+              >
+                ✕
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     <div class="barline-row">
-      <label></label>
-      <button type="button" @click="addSegment">增加段落</button>
+      <span class="barline-hint">共 {{ segments.length }} 段</span>
     </div>
-    <div class="barline-row">
-      <label></label>
-      <span class="barline-hint"
-        >共 {{ segments.length }} 段 · 起始 BPM {{ segments[0]?.bpm }}</span
-      >
+    <div class="barline-add-row">
+      <button type="button" @click="addSegment">新增段落</button>
     </div>
+
+    <div class="barline-tapbar">
+      <button class="barline-tapbar-btn" type="button" :disabled="videoPaused" @click="tap()">
+        打拍子
+      </button>
+      <span class="barline-tap-value" :class="{ active: tapValue }">
+        {{ videoPaused ? '请先播放视频' : tapValue ? `${tapValue}` : '—' }}
+      </span>
+      <span class="barline-tapbar-group">
+        <button type="button" :disabled="!tapValue" @click="copyTapBpm">
+          {{ copied ? '已复制' : '复制' }}
+        </button>
+        <button type="button" @click="clearTap">清空</button>
+      </span>
+      <span class="barline-tapbar-checkgroup">
+        <label class="barline-tapbar-check">
+          <input v-model="snapFirstBeat" type="checkbox" />第一拍位置吸附到拍子
+        </label>
+        <label class="barline-tapbar-check">
+          <input v-model="tempMetronomeOff" type="checkbox" />临时关闭节拍器
+        </label>
+      </span>
+    </div>
+
     <div class="barline-actions">
       <button v-if="hasConfig" type="button" class="danger" @click="deleteAll">删除配置</button>
       <button type="button" @click="cancel">关闭</button>
@@ -112,6 +157,7 @@ import {
   TimeSignatureSegment,
   clamp,
   formatTime,
+  locateBar,
   normalizeConfig,
   parseTime,
   segmentBeatDuration,
@@ -125,6 +171,7 @@ export default Vue.extend({
     hasConfig: { type: Boolean, default: false },
     onDelete: { type: Function, required: true },
     onPreview: { type: Function, required: true },
+    onTempMute: { type: Function, required: true },
   },
   data() {
     const normalized = normalizeConfig(this.initial as BarConfig)
@@ -132,7 +179,13 @@ export default Vue.extend({
       segments: normalized.segments.map(s => ({ ...s })) as TimeSignatureSegment[],
       metronomeMuted: normalized.metronomeMuted,
       metronomeVolume: normalized.metronomeVolume,
-      tapTimes: {} as Record<number, number[]>,
+      tapTimes: [] as number[],
+      tapValue: 0,
+      copied: false,
+      snapFirstBeat: false,
+      tempMetronomeOff: false,
+      videoPaused: true,
+      videoListeners: null as ((this: HTMLVideoElement, ev: Event) => void) | null,
       BPM_MIN,
       BPM_MAX,
       NUMERATOR_MIN,
@@ -156,13 +209,30 @@ export default Vue.extend({
         this.onPreview(this.draft)
       },
     },
+    tempMetronomeOff(value: boolean) {
+      // 仅实时静音/恢复，不写入配置。
+      this.onTempMute(value)
+    },
   },
   mounted() {
     document.addEventListener('keydown', this.onKeydown, true)
+    const video = this.video as HTMLVideoElement
+    this.videoPaused = video.paused
+    const update = () => {
+      this.videoPaused = video.paused
+    }
+    video.addEventListener('play', update)
+    video.addEventListener('pause', update)
+    this.videoListeners = update
     this.onPreview(this.draft)
   },
   beforeDestroy() {
     document.removeEventListener('keydown', this.onKeydown, true)
+    const video = this.video as HTMLVideoElement
+    if (this.videoListeners) {
+      video.removeEventListener('play', this.videoListeners)
+      video.removeEventListener('pause', this.videoListeners)
+    }
   },
   methods: {
     formatTime,
@@ -220,6 +290,13 @@ export default Vue.extend({
       // 失焦后统一还原为规范格式，输入过程中不打断。
       input.value = formatTime(this.segments[0].firstBeatTime ?? 0)
     },
+    nudgeFirstBeat(direction: number) {
+      const beat = segmentBeatDuration(this.segments[0])
+      this.segments[0].firstBeatTime = Math.max(
+        0,
+        (this.segments[0].firstBeatTime ?? 0) + direction * beat,
+      )
+    },
     onStartBarInput(index: number, e: Event) {
       const value = Math.round(Number((e.target as HTMLInputElement).value))
       if (Number.isFinite(value)) {
@@ -232,59 +309,97 @@ export default Vue.extend({
         Math.round(Number((e.target as HTMLInputElement).value) || 2),
       )
     },
-    nudgeFirstBeat(direction: number) {
-      const beat = segmentBeatDuration(this.segments[0])
-      this.segments[0].firstBeatTime = Math.max(
-        0,
-        (this.segments[0].firstBeatTime ?? 0) + direction * beat,
-      )
+    batchEdit(mode: 'bpm' | 'numerator' | 'denominator') {
+      const maps = { bpm: 'BPM', numerator: '分子', denominator: '分母' } as const
+      const label = maps[mode]
+      const value = prompt(`输入新的${label}，将应用到所有段落：`)
+      if (value === null) {
+        return
+      }
+      const num = Number(value)
+      if (!Number.isFinite(num)) {
+        return
+      }
+      if (mode === 'bpm') {
+        const v = clamp(num, BPM_MIN, BPM_MAX)
+        this.segments.forEach(s => {
+          s.bpm = v
+        })
+      } else if (mode === 'numerator') {
+        const v = clamp(Math.round(num), NUMERATOR_MIN, NUMERATOR_MAX)
+        this.segments.forEach(s => {
+          s.numerator = v
+        })
+      } else {
+        const v = (DENOMINATORS as readonly number[]).includes(num)
+          ? num
+          : DEFAULT_SEGMENT.denominator
+        this.segments.forEach(s => {
+          s.denominator = v
+        })
+      }
     },
     addSegment() {
+      const video = this.video as HTMLVideoElement
+      const loc = locateBar(this.draft, video.currentTime)
+      const curBar = loc ? Math.max(2, loc.bar) : 2
       const last = this.segments[this.segments.length - 1] ?? DEFAULT_SEGMENT
-      const startBar = this.segments.length === 1 ? 2 : Math.max(2, (last.startBar ?? 2) + 1)
+      const startBar = Math.max(curBar, last?.startBar ?? 1)
       this.segments.push({
-        bpm: last.bpm,
-        numerator: last.numerator,
-        denominator: last.denominator,
+        bpm: last?.bpm ?? DEFAULT_SEGMENT.bpm,
+        numerator: last?.numerator ?? DEFAULT_SEGMENT.numerator,
+        denominator: last?.denominator ?? DEFAULT_SEGMENT.denominator,
         startBar,
       })
     },
     removeSegment(index: number) {
       this.segments.splice(index, 1)
-      this.tapTimes = lodash.omit(this.tapTimes, String(index))
     },
-    tapSegment(index: number) {
+    tap() {
       const video = this.video as HTMLVideoElement
       if (video.paused) {
         return
       }
       const now = video.currentTime
-      const taps = this.tapTimes[index] || []
-      if (taps.length > 0 && now - taps[taps.length - 1] > 3) {
-        taps.length = 0
+      if (this.tapTimes.length > 0 && now - this.tapTimes[this.tapTimes.length - 1] > 3) {
+        this.tapTimes.length = 0
       }
-      taps.push(now)
-      this.tapTimes[index] = taps
-      if (taps.length < 2) {
+      this.tapTimes.push(now)
+      if (this.tapTimes.length < 2) {
         return
       }
       const intervals: number[] = []
-      for (let i = 1; i < taps.length; i += 1) {
-        intervals.push(taps[i] - taps[i - 1])
+      for (let i = 1; i < this.tapTimes.length; i += 1) {
+        intervals.push(this.tapTimes[i] - this.tapTimes[i - 1])
       }
       const sorted = [...intervals].sort((a, b) => a - b)
       const median = sorted[Math.floor(sorted.length / 2)]
       const valid = intervals.filter(d => d > median * 0.5 && d < median * 1.5)
       if (valid.length === 0) {
-        taps.length = 0
+        this.tapTimes.length = 0
         return
       }
       const avg = valid.reduce((sum, d) => sum + d, 0) / valid.length
-      const bpm = clamp(Math.round(60 / avg), BPM_MIN, BPM_MAX)
-      this.segments[index].bpm = bpm
-      if (index === 0) {
-        this.segments[0].firstBeatTime = taps[0]
+      this.tapValue = clamp(Math.round(60 / avg), BPM_MIN, BPM_MAX)
+      // 「吸附到拍子」勾选时同步第一拍位置到网格锚点。
+      if (this.snapFirstBeat && this.segments[0]) {
+        const bd = segmentBeatDuration({ ...this.segments[0], bpm: this.tapValue })
+        this.segments[0].firstBeatTime = ((this.tapTimes[0] % bd) + bd) % bd
       }
+    },
+    copyTapBpm() {
+      if (!this.tapValue) {
+        return
+      }
+      navigator.clipboard?.writeText(String(this.tapValue)).catch(none)
+      this.copied = true
+      window.setTimeout(() => {
+        this.copied = false
+      }, 1200)
+    },
+    clearTap() {
+      this.tapTimes.length = 0
+      this.tapValue = 0
     },
     cancel() {
       this.$emit('dialog-close')

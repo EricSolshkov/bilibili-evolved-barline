@@ -102,10 +102,13 @@ const tickBeatDisplay = () => {
   } else if (currentConfig?.metronomeMuted) {
     icon = 'barline-metronome-off'
   } else if (currentVideo) {
-    // 播放中显示第几拍；暂停时显示节拍器图标。
-    icon = currentVideo.paused
-      ? 'barline-metronome-on'
-      : beatIconName(beatNumberAt(currentConfig, currentVideo.currentTime) ?? 1)
+    // 播放中显示第几拍；暂停或还没到第一拍时显示节拍器图标。
+    if (currentConfig && currentVideo.paused === false) {
+      const beat = beatNumberAt(currentConfig, currentVideo.currentTime)
+      icon = beat !== null ? beatIconName(beat) : 'barline-metronome-on'
+    } else {
+      icon = 'barline-metronome-on'
+    }
   } else {
     icon = 'barline-metronome-off'
   }
@@ -190,6 +193,10 @@ const openEditor = () => {
         overlay?.setConfig(draft)
         setBodyState(true, !draft.metronomeMuted)
       },
+      // 「临时关闭节拍器」：只实时静音/恢复，不写入配置。
+      onTempMute: (muted: boolean) => {
+        metronome?.setMuted(muted)
+      },
       onDelete: () => {
         if (currentKey) {
           deleteConfig(currentKey)
@@ -208,6 +215,11 @@ const openEditor = () => {
   dialog.closeListeners.push(() => {
     overlay?.setDraft(null)
     editClose = null
+    // 关闭窗口后恢复节拍器到配置的真实静音状态（解除「临时关闭」）。
+    if (currentConfig) {
+      metronome?.setMuted(currentConfig.metronomeMuted)
+      setBodyState(true, !currentConfig.metronomeMuted)
+    }
   })
 }
 
@@ -534,7 +546,8 @@ const sync = async (id: { aid?: string; cid?: string }) => {
 
   metronome?.setVideo(video)
   metronome?.setConfig(currentConfig)
-  metronome?.setMuted(Boolean(currentConfig?.metronomeMuted))
+  // 无配置时也保持静音（不发声），符合「节拍器默认静音」。
+  metronome?.setMuted(Boolean(!currentConfig || currentConfig?.metronomeMuted))
   metronome?.setVolume(currentConfig?.metronomeVolume ?? 1)
   volumeSliderRefresh?.()
 

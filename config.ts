@@ -15,7 +15,7 @@ export interface TimeSignatureSegment {
   bpm: number
   /** 拍号分子（每小节拍数） */
   numerator: number
-  /** 拍号分母（2 | 4 | 8 | 16） */
+  /** 拍号分母（2 | 4 | 8 | 16）；决定一拍的时长，参与时间计算 */
   denominator: number
   /** 第一段专属：第一拍的时间（秒） */
   firstBeatTime?: number
@@ -62,16 +62,28 @@ export const formatTime = (sec: number) => {
   return `${m}:${String(s).padStart(2, '0')}.${String(ms).padStart(3, '0')}`
 }
 
-/** "m:ss.mmm" -> 秒；解析失败返回 NaN */
+/** "m:ss.mmm" -> 秒；解析失败返回 NaN。支持三种写法：
+ * - 纯数字/小数：当作秒（如 `12` = 12 秒，`1.5` = 1.5 秒）
+ * - 含 `:` 或 `：`：前面是分钟、后面是秒（如 `1:02` = 1 分 2 秒）。 */
 export const parseTime = (str: string) => {
-  const m = str.match(/^\s*(\d+):(\d{1,2})(?:\.(\d{1,3}))?\s*$/)
-  if (!m) {
+  const text = str.trim().replace(/。/g, '.')
+  if (!text) {
     return NaN
   }
-  const min = Number(m[1])
-  const sec = Number(m[2])
-  const ms = m[3] ? Number(m[3]) / 1000 : 0
-  return min * 60 + sec + ms
+  const colonMatch = text.match(/^\s*(\d+)\s*[:：]\s*(\d+(?:\.\d+)?)\s*$/)
+  if (colonMatch) {
+    const min = Number(colonMatch[1])
+    const sec = Number(colonMatch[2])
+    if (min >= 0 && sec >= 0 && sec < 60) {
+      return min * 60 + sec
+    }
+    return NaN
+  }
+  const secMatch = text.match(/^\s*(\d+(?:\.\d+)?)\s*$/)
+  if (secMatch) {
+    return Number(secMatch[1])
+  }
+  return NaN
 }
 
 const normalizeDenominator = (value: unknown) =>
@@ -124,7 +136,12 @@ export const normalizeConfig = (input: unknown): BarConfig => {
   }
 }
 
-export const segmentBeatDuration = (segment: TimeSignatureSegment) => 60 / segment.bpm
+/**
+ * 一拍时长（秒）。bpm 以四分音符为一拍，分母 d 表示一拍是 d 分音符：
+ * 一拍 = (60/bpm) × (4/d)。分母 4 时即 60/bpm。
+ */
+export const segmentBeatDuration = (segment: TimeSignatureSegment) =>
+  (60 / segment.bpm) * (4 / segment.denominator)
 
 export const segmentBarDuration = (segment: TimeSignatureSegment) =>
   segment.numerator * segmentBeatDuration(segment)
