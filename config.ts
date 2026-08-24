@@ -46,7 +46,7 @@ export const DEFAULT_SEGMENT: TimeSignatureSegment = {
 
 export const DEFAULT_CONFIG: BarConfig = {
   segments: [{ ...DEFAULT_SEGMENT }],
-  metronomeMuted: false,
+  metronomeMuted: true,
   metronomeVolume: 1,
 }
 
