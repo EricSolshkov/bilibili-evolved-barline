@@ -143,8 +143,19 @@ export class Metronome {
     }
   }
 
-  private scheduleClick(accent: boolean, delaySeconds: number): OscillatorNode | null {
-    if (!this.ctx || this.ctx.state !== 'running' || this.muted || this.volume <= 0.001) {
+  /**
+   * 播放一个点击。
+   * @param maxVolume 是否固定用最大音量（预备拍使用），忽略静音/音量设置。
+   */
+  private scheduleClick(
+    accent: boolean,
+    delaySeconds: number,
+    maxVolume = false,
+  ): OscillatorNode | null {
+    if (!this.ctx || this.ctx.state !== 'running') {
+      return null
+    }
+    if (!maxVolume && (this.muted || this.volume <= 0.001)) {
       return null
     }
     const { ctx } = this
@@ -153,7 +164,7 @@ export class Metronome {
     const gain = ctx.createGain()
     osc.type = 'square'
     osc.frequency.value = accent ? 1760 : 1320
-    const peak = (accent ? 3.6 : 2.4) * this.volume
+    const peak = (accent ? 3.6 : 2.4) * (maxVolume ? 1 : this.volume)
     gain.gain.setValueAtTime(0.0001, t0)
     gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.002)
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05)
@@ -186,7 +197,8 @@ export class Metronome {
     const beat = segmentBeatDuration(segment)
     const count = segment.numerator
     for (let i = 0; i < count; i += 1) {
-      const osc = this.scheduleClick(i === 0, i * beat)
+      // 预备拍固定用最大音量，忽略静音/音量设置。
+      const osc = this.scheduleClick(i === 0, i * beat, true)
       if (osc) {
         this.countInOscs.push(osc)
       }
