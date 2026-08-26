@@ -83,6 +83,18 @@ import { Toast } from '@/core/toast'
 import { BarConfig, deleteConfig, importAllConfigs, loadAllConfigs, setVideoMeta } from './config'
 import { fetchVideoMeta } from './video-fetch'
 
+/** 把 ISO 导出时间格式化为「xxxx年xx月xx日00:00:00」。 */
+const formatExportTime = (iso: string) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) {
+    return iso
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}年${pad(d.getMonth() + 1)}月${pad(d.getDate())}日${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
 interface Card {
   key: string
   title: string
@@ -248,13 +260,14 @@ export default Vue.extend({
     },
     doExport() {
       const data = loadAllConfigs()
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const exportedData = { ...data, exportedAt: new Date().toISOString() }
+      const blob = new Blob([JSON.stringify(exportedData, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       const d = new Date()
       const pad = (n: number) => String(n).padStart(2, '0')
-      const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(
+      const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(
         d.getHours(),
       )}${pad(d.getMinutes())}${pad(d.getSeconds())}`
       a.download = `barline-${stamp}.json`
@@ -262,9 +275,6 @@ export default Vue.extend({
       URL.revokeObjectURL(url)
     },
     triggerImport() {
-      if (!window.confirm('导入将会覆盖当前全部配置')) {
-        return
-      }
       const input = document.createElement('input')
       input.type = 'file'
       input.accept = 'application/json, .json'
@@ -274,26 +284,45 @@ export default Vue.extend({
         if (!file) {
           return
         }
-        const toast = Toast.info('正在导入...', '导入全部小节线')
         file.text().then(text => {
-          let data: unknown
+          let data: Record<string, unknown>
           try {
             data = JSON.parse(text)
           } catch {
-            toast.message = '导入失败：文件不是有效 JSON'
-            setTimeout(() => toast.dismiss?.(), 2000)
+            const t = Toast.info('导入失败：文件不是有效 JSON', '导入全部小节线')
+            setTimeout(() => t.dismiss?.(), 2000)
             return
           }
-          if (data && typeof data === 'object' && !Array.isArray(data)) {
-            importAllConfigs(data as Record<string, unknown>)
-            const count = Object.keys(data as Record<string, unknown>).length
-            toast.message = `导入完成，共 ${count} 项，刷新后生效`
-            setTimeout(() => toast.dismiss?.(), 2500)
-            this.loadCards()
-          } else {
-            toast.message = '导入失败：内容无效'
-            setTimeout(() => toast.dismiss?.(), 2000)
+          if (!data || typeof data !== 'object' || Array.isArray(data)) {
+            const t = Toast.info('导入失败：内容无效', '导入全部小节线')
+            setTimeout(() => t.dismiss?.(), 2000)
+            return
           }
+          const meta = data.exportedAt
+          const configs: Record<string, unknown> = { ...data }
+          if (meta !== undefined) {
+            delete configs.exportedAt
+          }
+          if (typeof meta !== 'string') {
+            const t = Toast.info('导入失败：缺少导出时间', '导入全部小节线')
+            setTimeout(() => t.dismiss?.(), 2500)
+            return
+          }
+          const currentCount = Object.keys(loadAllConfigs()).length
+          const importCount = Object.keys(configs).length
+          const when = formatExportTime(meta)
+          if (
+            !window.confirm(
+              `即将导入来自${when}的${importCount}项配置，完全覆盖当前的${currentCount}项配置`,
+            )
+          ) {
+            return
+          }
+          const toast = Toast.info('正在导入...', '导入全部小节线')
+          importAllConfigs(configs)
+          toast.message = `导入完成，共 ${importCount} 项，刷新后生效`
+          setTimeout(() => toast.dismiss?.(), 2500)
+          this.loadCards()
         })
       })
       document.body.appendChild(input)
