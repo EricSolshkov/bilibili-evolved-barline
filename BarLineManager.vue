@@ -6,7 +6,9 @@
         <button type="button" class="danger" :disabled="!selected.length" @click="removeSelected">
           删除所选 ({{ selected.length }})
         </button>
-        <button type="button" @click="toggleAll">{{ allSelected ? '取消全选' : '选择全部' }}</button>
+        <button type="button" @click="toggleAll">
+          {{ allSelected ? '取消全选' : '选择全部' }}
+        </button>
       </span>
       <span class="blm-sort">
         排序：

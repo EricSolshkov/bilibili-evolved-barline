@@ -122,13 +122,17 @@
       <span class="barline-tap-value" :class="{ active: tapValue }">
         {{ videoPaused ? '请先播放视频' : tapValue ? `${tapValue}` : '—' }}
       </span>
-      <span class="barline-tapbar-group">
-        <button type="button" :disabled="!tapValue" @click="copyTapBpm">
-          {{ copied ? '已复制' : '复制' }}
-        </button>
-        <button type="button" @click="clearTap">清空</button>
+      <span class="barline-tapbar-col">
+        <span class="barline-tapbar-group">
+          <button type="button" :disabled="!tapValue" @click="copyTapBpm">
+            {{ copied ? '已复制' : '复制' }}
+          </button>
+        </span>
+        <span class="barline-tapbar-group">
+          <button type="button" @click="clearTap">清空</button>
+        </span>
       </span>
-      <span class="barline-tapbar-checkgroup">
+      <span class="barline-tapbar-col">
         <label class="barline-tapbar-check">
           <input v-model="snapFirstBeat" type="checkbox" />第一拍位置吸附到拍子
         </label>
