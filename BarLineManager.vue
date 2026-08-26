@@ -10,6 +10,10 @@
           {{ allSelected ? '取消全选' : '选择全部' }}
         </button>
       </span>
+      <span class="blm-io">
+        <button type="button" @click="doExport">导出全部</button>
+        <button type="button" @click="triggerImport">导入全部</button>
+      </span>
       <span class="blm-sort">
         排序：
         <button
@@ -28,12 +32,8 @@
         </button>
         <button type="button" @click="toggleOrder">{{ sortAsc ? '↑' : '↓' }}</button>
       </span>
-      <span class="blm-io">
-        <button type="button" @click="doExport">导出</button>
-        <button type="button" @click="triggerImport">导入</button>
-      </span>
     </div>
-    <div class="blm-hint">共 {{ cards.length }} 个视频，已选 {{ selected.length }}</div>
+    <div class="blm-hint">共 {{ cards.length }} 个视频</div>
     <div class="blm-grid">
       <div
         v-for="(card, index) in displayCards"
@@ -79,6 +79,7 @@
 </template>
 
 <script lang="ts">
+import { Toast } from '@/core/toast'
 import { BarConfig, deleteConfig, importAllConfigs, loadAllConfigs, setVideoMeta } from './config'
 import { fetchVideoMeta } from './video-fetch'
 
@@ -261,6 +262,9 @@ export default Vue.extend({
       URL.revokeObjectURL(url)
     },
     triggerImport() {
+      if (!window.confirm('导入将会覆盖当前全部配置')) {
+        return
+      }
       const input = document.createElement('input')
       input.type = 'file'
       input.accept = 'application/json, .json'
@@ -270,16 +274,25 @@ export default Vue.extend({
         if (!file) {
           return
         }
+        const toast = Toast.info('正在导入...', '导入全部小节线')
         file.text().then(text => {
           let data: unknown
           try {
             data = JSON.parse(text)
           } catch {
+            toast.message = '导入失败：文件不是有效 JSON'
+            setTimeout(() => toast.dismiss?.(), 2000)
             return
           }
           if (data && typeof data === 'object' && !Array.isArray(data)) {
             importAllConfigs(data as Record<string, unknown>)
+            const count = Object.keys(data as Record<string, unknown>).length
+            toast.message = `导入完成，共 ${count} 项，刷新后生效`
+            setTimeout(() => toast.dismiss?.(), 2500)
             this.loadCards()
+          } else {
+            toast.message = '导入失败：内容无效'
+            setTimeout(() => toast.dismiss?.(), 2000)
           }
         })
       })
