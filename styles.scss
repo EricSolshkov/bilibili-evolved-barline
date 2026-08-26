@@ -546,7 +546,8 @@ body.barline-hide-bar-nav .be-video-control-bar-extend-item[data-name='barLineNe
 }
 
 .blm-sort button,
-.blm-io button {
+.blm-io button,
+.blm-toolbar > button {
   background: #2a2f36;
   color: #eee;
   border: 1px solid #3a4048;
@@ -562,7 +563,8 @@ body.barline-hide-bar-nav .be-video-control-bar-extend-item[data-name='barLineNe
 }
 
 .blm-sort button:hover,
-.blm-io button:hover {
+.blm-io button:hover,
+.blm-toolbar > button:hover {
   background: #333a41;
 }
 

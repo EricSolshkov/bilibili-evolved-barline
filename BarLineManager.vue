@@ -127,8 +127,18 @@ export default Vue.extend({
   },
   mounted() {
     this.loadCards()
+    // 切回本标签页时自动刷新（面板打开期间其它标签页的改动）。
+    document.addEventListener('visibilitychange', this.onVisibilityChange)
+  },
+  beforeDestroy() {
+    document.removeEventListener('visibilitychange', this.onVisibilityChange)
   },
   methods: {
+    onVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        this.loadCards()
+      }
+    },
     onQueryInput(e: Event) {
       this.query = (e.target as HTMLInputElement).value
     },
@@ -199,6 +209,9 @@ export default Vue.extend({
           }
         })
         .sort((a, b) => b.openedAt - a.openedAt)
+      // 清理已不存在的选中项
+      const keySet = new Set(keys)
+      this.selected = this.selected.filter(k => keySet.has(k))
       keys.forEach(key => {
         this.fetchMeta(key, all[key])
       })

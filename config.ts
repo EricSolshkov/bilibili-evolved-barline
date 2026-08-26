@@ -321,9 +321,63 @@ export const initStore = (settings: unknown) => {
   settingsRef = settings as SettingsLike
 }
 
+/** 从 GM 存储读最新（跨标签共享）的 configs 字符串；失败返回 null。 */
+const readRawFromGM = (): string | null => {
+  try {
+    // registry 组件运行在页面上下文，经 unsafeWindow.bilibiliEvolved.monkeyApis 访问 GM API。
+    const components = unsafeWindow.bilibiliEvolved.monkeyApis.GM_getValue<Record<string, unknown>>(
+      'components',
+      {},
+    ) as Record<string, unknown>
+    const opt = components?.barline as Record<string, unknown> | undefined
+    const raw = opt?.options as Record<string, unknown> | undefined
+    if (typeof raw?.configs === 'string') {
+      return raw.configs
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** 读取配置字符串：优先 GM 最新，失败才回退本地（仅作兜底）。 */
 const readRaw = () => {
-  const raw = settingsRef?.options?.configs
-  return typeof raw === 'string' && raw.length > 0 ? raw : '{}'
+  const gmRaw = readRawFromGM()
+  if (gmRaw !== null) {
+    return gmRaw
+  }
+  const localRaw = settingsRef?.options?.configs
+  return typeof localRaw === 'string' && localRaw.length > 0 ? localRaw : '{}'
+}
+
+/**
+ * 把配置写回 GM：读 GM 最新整体 components，仅替换本组件的 configs 字段，
+ * 其它字段保持 GM 最新，避免用本标签页旧快照整体覆盖数据库。
+ * 不通过本地 proxy 写（本地 proxy 赋值会触发框架把整个 components 覆盖回 GM）。
+ */
+const writeConfigsToGM = (json: string) => {
+  try {
+    const gm = unsafeWindow.bilibiliEvolved.monkeyApis
+    const components = gm.GM_getValue<Record<string, unknown>>('components', {}) as Record<
+      string,
+      unknown
+    >
+    const barline = (components.barline ?? {}) as Record<string, unknown>
+    const options = (barline.options ?? {}) as Record<string, unknown>
+    const next = {
+      ...components,
+      barline: {
+        ...barline,
+        options: {
+          ...options,
+          configs: json,
+        },
+      },
+    }
+    gm.GM_setValue('components', next)
+  } catch {
+    // ignore
+  }
 }
 
 export const loadAllConfigs = (): Record<string, BarConfig> => {
@@ -341,10 +395,7 @@ export const loadConfig = (key: string): BarConfig | null => {
 }
 
 const writeAll = (all: Record<string, BarConfig>) => {
-  if (!settingsRef?.options) {
-    return
-  }
-  settingsRef.options.configs = JSON.stringify(all)
+  writeConfigsToGM(JSON.stringify(all))
 }
 
 export const saveConfig = (key: string, cfg: BarConfig) => {
