@@ -29,6 +29,17 @@ export interface BarConfig {
   metronomeMuted: boolean
   /** 节拍器音量（0 - 1） */
   metronomeVolume: number
+  /** 创建时间（ms）；管理面板按「创建时间」排序用 */
+  createdAt?: number
+  /** 最近打开时间（ms）；管理面板按「最后打开时间」排序用 */
+  openedAt?: number
+  /** 视频标题 / 封面（管理面板卡片展示，由 B 站 API 拉取后缓存） */
+  videoTitle?: string
+  videoCover?: string
+  /** 视频 BV 号（跳转用） */
+  bvid?: string
+  /** 视频 aid（跳转用） */
+  aid?: string
 }
 
 export const BPM_MIN = 30
@@ -121,6 +132,12 @@ export const normalizeConfig = (input: unknown): BarConfig => {
     segments?: unknown
     metronomeMuted?: unknown
     metronomeVolume?: unknown
+    createdAt?: unknown
+    openedAt?: unknown
+    videoTitle?: unknown
+    videoCover?: unknown
+    bvid?: unknown
+    aid?: unknown
   }
   const segments =
     Array.isArray(src.segments) && src.segments.length > 0
@@ -129,11 +146,30 @@ export const normalizeConfig = (input: unknown): BarConfig => {
   if (segments[0].firstBeatTime === undefined) {
     segments[0].firstBeatTime = 0
   }
-  return {
+  const cfg: BarConfig = {
     segments,
     metronomeMuted: Boolean(src.metronomeMuted),
     metronomeVolume: clamp(Number(src.metronomeVolume ?? 1), 0, 1),
   }
+  if (typeof src.createdAt === 'number') {
+    cfg.createdAt = src.createdAt
+  }
+  if (typeof src.openedAt === 'number') {
+    cfg.openedAt = src.openedAt
+  }
+  if (typeof src.videoTitle === 'string' && src.videoTitle) {
+    cfg.videoTitle = src.videoTitle
+  }
+  if (typeof src.videoCover === 'string' && src.videoCover) {
+    cfg.videoCover = src.videoCover
+  }
+  if (typeof src.bvid === 'string' && src.bvid) {
+    cfg.bvid = src.bvid
+  }
+  if (typeof src.aid === 'string' && src.aid) {
+    cfg.aid = src.aid
+  }
+  return cfg
 }
 
 /**
@@ -313,7 +349,46 @@ const writeAll = (all: Record<string, BarConfig>) => {
 
 export const saveConfig = (key: string, cfg: BarConfig) => {
   const all = loadAllConfigs()
-  all[key] = normalizeConfig(cfg)
+  const existing = all[key]
+  const normalized = normalizeConfig(cfg)
+  // 首次创建补全创建时间。
+  if (normalized.createdAt === undefined) {
+    normalized.createdAt = existing?.createdAt ?? Date.now()
+  }
+  // 保存时更新最近打开时间。
+  normalized.openedAt = Date.now()
+  all[key] = normalized
+  writeAll(all)
+  return normalized
+}
+
+/** 更新配置里的视频元信息（标题/封面/bv），不触碰 created/opened 时间戳。 */
+export const setVideoMeta = (
+  key: string,
+  meta: Partial<Pick<BarConfig, 'videoTitle' | 'videoCover' | 'bvid'>>,
+) => {
+  const all = loadAllConfigs()
+  if (!all[key]) {
+    return
+  }
+  const cfg = normalizeConfig(all[key])
+  all[key] = normalizeConfig({
+    ...cfg,
+    ...meta,
+    createdAt: cfg.createdAt,
+    openedAt: cfg.openedAt,
+  })
+  writeAll(all)
+}
+
+/** 记录「最后打开时间」（ms）。 */
+export const touchOpened = (key: string) => {
+  const all = loadAllConfigs()
+  if (!all[key]) {
+    return
+  }
+  const cfg = normalizeConfig(all[key])
+  all[key] = normalizeConfig({ ...cfg, openedAt: Date.now(), createdAt: cfg.createdAt })
   writeAll(all)
 }
 
@@ -321,4 +396,13 @@ export const deleteConfig = (key: string) => {
   const all = loadAllConfigs()
   delete all[key]
   writeAll(all)
+}
+
+/** 批量导入配置（key 保持原样，与导出时的 key 一致）。 */
+export const importAllConfigs = (all: Record<string, unknown>) => {
+  const normalized: Record<string, BarConfig> = {}
+  for (const [key, cfg] of Object.entries(all)) {
+    normalized[key] = normalizeConfig(cfg)
+  }
+  writeAll(normalized)
 }

@@ -37,6 +37,7 @@ import {
   locateBar,
   saveConfig,
   segmentAt,
+  touchOpened,
 } from './config'
 import { Metronome } from './metronome'
 import { BarSwipe } from './swipe'
@@ -188,6 +189,21 @@ const clearUiState = () => {
   setBodyState(false, false)
 }
 
+export const openManager = () => {
+  if (editClose) {
+    return
+  }
+  const dialog = showDialog({
+    title: '管理小节线',
+    content: () => import('./BarLineManager.vue'),
+  })
+  dialog.$el?.classList.add('barline-dialog', 'barline-manage-dialog')
+  editClose = () => dialog.close()
+  dialog.closeListeners.push(() => {
+    editClose = null
+  })
+}
+
 export const openEditor = () => {
   if (!currentVideo || editClose) {
     return
@@ -205,7 +221,12 @@ export const openEditor = () => {
       onPreview: (draft: BarConfig) => {
         currentConfig = draft
         if (currentKey) {
-          saveConfig(currentKey, draft)
+          // 记录当前视频的 aid/bvid，供「管理小节线」显示标题/封面/跳转。
+          saveConfig(currentKey, {
+            ...draft,
+            aid: draft.aid || String(unsafeWindow.aid ?? currentKey),
+            bvid: draft.bvid || (unsafeWindow.bvid as string | undefined),
+          })
         }
         metronome?.setConfig(draft)
         metronome?.setMuted(draft.metronomeMuted)
@@ -608,6 +629,10 @@ const sync = async (id: { aid?: string; cid?: string }) => {
   currentVideo = video
   currentKey = id.cid || id.aid || ''
   currentConfig = currentKey ? loadConfig(currentKey) : null
+  if (currentKey && currentConfig) {
+    // 记录「最后打开时间」。
+    touchOpened(currentKey)
+  }
 
   metronome?.setVideo(video)
   metronome?.setConfig(currentConfig)
