@@ -16,13 +16,15 @@ import {
 import { videoChange } from '@/core/observer'
 import { addControlBarButton } from '@/components/video/video-control-bar'
 import type { VideoControlBarItem } from '@/components/video/video-control-bar'
+import { addComponentListener, removeComponentListener } from '@/core/settings'
+import type { ComponentSettings } from '@/core/settings/types'
 import { playerAgent } from '@/components/video/player-agent'
 import { getActiveElement, isTyping, playerReady } from '@/core/utils'
 import { addData } from '@/plugins/data'
 import { playerUrls } from '@/core/utils/urls'
 import { showDialog } from '@/core/dialog'
 import { Toast } from '@/core/toast'
-import { select } from '@/core/spin-query'
+import { select, hasVideo } from '@/core/spin-query'
 import {
   BarConfig,
   DEFAULT_CONFIG,
@@ -37,6 +39,7 @@ import {
   segmentAt,
 } from './config'
 import { Metronome } from './metronome'
+import { BarSwipe } from './swipe'
 import { SegmentMarkerOverlay, ensureStyles } from './ui'
 import pencilIcon from './pencil.svg'
 import metronomeOnIcon from './metronome.svg'
@@ -53,6 +56,18 @@ const options = defineOptionsMetadata({
     defaultValue: '{}',
     displayName: '小节线配置',
     hidden: true,
+  },
+  hideBarNavButtons: {
+    displayName: '隐藏上下小节按钮',
+    defaultValue: false,
+  },
+  loopDisableCountIn: {
+    displayName: '循环段禁用预备拍',
+    defaultValue: false,
+  },
+  promptMetronomeVolume: {
+    displayName: '弹窗设置节拍器音量',
+    defaultValue: false,
   },
 })
 export type BarLineOptions = OptionsOfMetadata<typeof options>
@@ -84,7 +99,12 @@ let beatDisplayRaf = 0
 let lastBeatIcon = ''
 let volumeTooltip: { tippy: { destroy: () => void } } | null = null
 let volumeSliderRefresh: (() => void) | null = null
+let barSwipe: BarSwipe | null = null
 let resetLoop: () => void
+let settingsRef: ComponentSettings<BarLineOptions>['options'] | null = null
+let listenerHandlers: Array<() => void> | null = null
+
+const isLoopCountInDisabled = () => Boolean(settingsRef?.loopDisableCountIn)
 
 const beatIconName = (n: number) => (n >= 0 ? `barline-beat-${n}` : `barline-beat-neg${-n}`)
 
@@ -168,7 +188,7 @@ const clearUiState = () => {
   setBodyState(false, false)
 }
 
-const openEditor = () => {
+export const openEditor = () => {
   if (!currentVideo || editClose) {
     return
   }
@@ -243,6 +263,27 @@ const persistVolume = (volume: number) => {
 
 const toggleMute = () => {
   if (!currentConfig || !currentKey) {
+    return
+  }
+  // 「弹窗设置节拍器音量」开启时：用 prompt 设置音量（0-100），不再切换静音。
+  if (settingsRef?.promptMetronomeVolume) {
+    const current = Math.round((currentConfig.metronomeVolume ?? 1) * 100)
+    const input = prompt('设置节拍器音量 (0-100)', String(current))
+    if (input === null) {
+      return
+    }
+    const n = Number(input)
+    if (Number.isNaN(n)) {
+      return
+    }
+    const clamped = Math.min(100, Math.max(0, n))
+    const volume = clamped / 100
+    currentConfig = { ...currentConfig, metronomeVolume: volume, metronomeMuted: volume <= 0 }
+    saveConfig(currentKey, currentConfig)
+    metronome?.setVolume(volume)
+    metronome?.setMuted(volume <= 0)
+    setBodyState(true, volume > 0)
+    volumeSliderRefresh?.()
     return
   }
   const willMute = !currentConfig.metronomeMuted
@@ -332,6 +373,24 @@ const setupVolumeTooltip = async () => {
     onShow: () => refresh(),
     onShown: () => refresh(),
   })
+}
+
+/** 根据「弹窗设置节拍器音量」设置，切换节拍器按钮名称与 hover 滑块。 */
+const applyMetronomeButtonState = () => {
+  const promptMode = Boolean(settingsRef?.promptMetronomeVolume)
+  if (metronomeButton) {
+    // 开启弹窗设置：按钮名「节拍器」；关闭：空名（hover 滑块）。
+    metronomeButton.displayName = promptMode ? '节拍器' : ''
+  }
+  if (promptMode) {
+    // 弹窗设置开启：不显示 hover 滑块。
+    volumeTooltip?.tippy.destroy()
+    volumeTooltip = null
+    volumeSliderRefresh = null
+  } else {
+    // 弹窗设置关闭：显示 hover 滑块。
+    setupVolumeTooltip()
+  }
 }
 
 const seekToBar = (direction: -1 | 1) => {
@@ -439,7 +498,7 @@ const startLooping = () => {
         inCountIn = false
         video.play()
       }
-      if (segment) {
+      if (segment && !isLoopCountInDisabled()) {
         runCountIn(segment, resume)
       } else {
         resume()
@@ -480,9 +539,13 @@ const toggleLoop = () => {
     currentVideo.currentTime = start
     if (wasPlaying) {
       const segment = segmentAt(currentConfig, start)
-      runCountIn(segment ?? currentConfig.segments[0], () => {
-        currentVideo?.play()
-      })
+      if (segment && !isLoopCountInDisabled()) {
+        runCountIn(segment, () => {
+          currentVideo?.play()
+        })
+      } else {
+        currentVideo.play()
+      }
     }
   } else {
     resetLoop()
@@ -534,6 +597,8 @@ const sync = async (id: { aid?: string; cid?: string }) => {
   if (!enabled) {
     return
   }
+  // 兜底：确保样式已注入（编辑弹窗、音量滑块、进度条标记都依赖它）。
+  ensureStyles()
   resetLoop()
   const token = ++syncToken
   const video = (await playerAgent.query.video.element()) as HTMLVideoElement | null
@@ -569,6 +634,8 @@ const sync = async (id: { aid?: string; cid?: string }) => {
 
   overlay?.destroy()
   overlay = null
+  barSwipe?.destroy()
+  barSwipe = null
   if (video) {
     const progress = await playerAgent.query.control.progress()
     if (!enabled || token !== syncToken) {
@@ -581,17 +648,63 @@ const sync = async (id: { aid?: string; cid?: string }) => {
       }))
       overlay.setConfig(currentConfig)
     }
+    const container = playerAgent.query.video.container.sync()
+    if (container) {
+      // 触屏左右滑动跳小节：仅在已配置小节的视频生效。
+      barSwipe = new BarSwipe(container, {
+        getConfig: () => currentConfig,
+        isActive: () => enabled && Boolean(currentConfig),
+        onTarget: time => {
+          if (currentVideo) {
+            const wasPaused = currentVideo.paused
+            currentVideo.currentTime = time
+            // 若原本暂停，跳转后保持暂停；若原本播放则不受影响。
+            if (wasPaused && !currentVideo.paused) {
+              currentVideo.pause()
+            }
+          }
+        },
+      })
+      barSwipe.attach()
+    }
   }
   setBodyState(Boolean(currentConfig), !currentConfig?.metronomeMuted)
 }
 
-const entry = async ({ settings }: { settings: unknown }) => {
+/** 注册设置监听，重新开启组件时也会重新注册。 */
+const setupSettingsListeners = () => {
+  listenerHandlers?.forEach(remove => remove())
+  listenerHandlers = []
+
+  // 监听「隐藏上下小节按钮」设置，动态隐藏/显示上一小节/下一小节按钮。
+  const onHideBarNavChanged: Parameters<typeof addComponentListener>[1] = value => {
+    document.body.classList.toggle('barline-hide-bar-nav', Boolean(value))
+  }
+  addComponentListener('barline.hideBarNavButtons', onHideBarNavChanged, true)
+  listenerHandlers.push(() =>
+    removeComponentListener('barline.hideBarNavButtons', onHideBarNavChanged),
+  )
+
+  // 监听「弹窗设置节拍器音量」，切换按钮名称与 hover 滑块。
+  const onPromptVolumeChanged: Parameters<typeof addComponentListener>[1] = () => {
+    applyMetronomeButtonState()
+  }
+  addComponentListener('barline.promptMetronomeVolume', onPromptVolumeChanged, true)
+  listenerHandlers.push(() =>
+    removeComponentListener('barline.promptMetronomeVolume', onPromptVolumeChanged),
+  )
+}
+
+const entry = async ({ settings }: { settings: ComponentSettings<BarLineOptions> }) => {
   initStore(settings)
+  settingsRef = settings.options
   enabled = true
   document.body.classList.add(BODY_CLASS)
   ensureStyles()
   addData('ui.icons', (icons: Record<string, string>) => {
-    icons['barline-pencil'] = pencilIcon
+    if (!icons['barline-pencil']) {
+      icons['barline-pencil'] = pencilIcon
+    }
     icons['barline-metronome-on'] = metronomeOnIcon
     icons['barline-metronome-off'] = metronomeOffIcon
     icons['barline-prev'] = prevIcon
@@ -607,13 +720,6 @@ const entry = async ({ settings }: { settings: unknown }) => {
   })
   await playerReady()
   metronome = new Metronome()
-  addControlBarButton({
-    name: 'barLineEdit',
-    displayName: '设置音乐小节线',
-    icon: 'barline-pencil',
-    order: 1,
-    action: openEditor,
-  })
   metronomeButton = {
     name: 'barLineMetronome',
     displayName: '',
@@ -653,7 +759,7 @@ const entry = async ({ settings }: { settings: unknown }) => {
   addControlBarButton(loopButton)
   window.addEventListener('keydown', onKeydown, true)
   startBeatDisplay()
-  setupVolumeTooltip()
+  setupSettingsListeners()
   await videoChange(sync)
 }
 
@@ -661,6 +767,7 @@ const reload = () => {
   enabled = true
   document.body.classList.add(BODY_CLASS)
   window.addEventListener('keydown', onKeydown, true)
+  setupSettingsListeners()
   if (!metronome) {
     metronome = new Metronome()
   }
@@ -672,11 +779,16 @@ const unload = () => {
   enabled = false
   stopBeatDisplay()
   clearUiState()
-  document.body.classList.remove(BODY_CLASS)
+  document.body.classList.remove(BODY_CLASS, 'barline-hide-bar-nav')
   window.removeEventListener('keydown', onKeydown, true)
+  barSwipe?.destroy()
+  barSwipe = null
+  listenerHandlers?.forEach(remove => remove())
+  listenerHandlers = null
   volumeTooltip?.tippy.destroy()
   volumeTooltip = null
   volumeSliderRefresh = null
+  settingsRef = null
   metronome?.dispose()
   metronome = null
   currentVideo = null
@@ -697,5 +809,9 @@ export const component = defineComponentMetadata({
   entry,
   reload,
   unload,
+  widget: {
+    condition: hasVideo,
+    component: () => import('./BarLineWidget.vue').then(m => m.default),
+  },
   urlInclude: playerUrls,
 })

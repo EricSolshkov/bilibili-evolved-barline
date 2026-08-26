@@ -1,13 +1,9 @@
-.be-video-control-bar-extend-item[data-name='barLineEdit'],
 .be-video-control-bar-extend-item[data-name='barLineMetronome'],
 .be-video-control-bar-extend-item[data-name='barLineFirst'],
 .be-video-control-bar-extend-item[data-name='barLinePrev'],
 .be-video-control-bar-extend-item[data-name='barLineNext'],
 .be-video-control-bar-extend-item[data-name='barLineLoop'] {
   display: none;
-}
-body.barline-active .be-video-control-bar-extend-item[data-name='barLineEdit'] {
-  display: flex;
 }
 body.barline-active.barline-configured .be-video-control-bar-extend-item[data-name='barLineMetronome'],
 body.barline-active.barline-configured .be-video-control-bar-extend-item[data-name='barLineFirst'],
@@ -20,6 +16,14 @@ body.barline-active.barline-configured.barline-metronome-on
   .be-video-control-bar-extend-item[data-name='barLineMetronome']
   .be-icon {
   color: #ff8a3d;
+}
+/* 设置项「隐藏上下小节按钮」打开时，隐藏「上一小节/下一小节」按钮。
+   用 !important 确保盖过 .barline-configured 的显示规则。 */
+body.barline-hide-bar-nav
+  .be-video-control-bar-extend-item[data-name='barLinePrev'],
+body.barline-hide-bar-nav
+  .be-video-control-bar-extend-item[data-name='barLineNext'] {
+  display: none !important;
 }
 .barline-overlay {
   position: absolute;

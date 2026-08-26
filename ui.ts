@@ -15,7 +15,7 @@ export const ensureStyles = () => {
     return
   }
   stylesAdded = true
-  addStyle(styles, 'barline')
+  addStyle(styles, 'barline-core')
 }
 
 /** 进度条上的拍号位置标记覆盖层 */
