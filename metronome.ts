@@ -17,6 +17,7 @@ export class Metronome {
   private cfg: BarConfig | null = null
   private muted = false
   private volume = 1
+  private countInMaxVolume = true
   private loopRunning = false
   private countInTimerIds: number[] = []
   private countInOscs: OscillatorNode[] = []
@@ -51,6 +52,11 @@ export class Metronome {
 
   setVolume(volume: number) {
     this.volume = Math.min(1, Math.max(0, volume))
+  }
+
+  /** 预备拍是否固定用最大音量（忽略静音/音量设置）。 */
+  setCountInMaxVolume(value: boolean) {
+    this.countInMaxVolume = Boolean(value)
   }
 
   /** 未静音时保证打拍循环在运行。 */
@@ -145,7 +151,7 @@ export class Metronome {
 
   /**
    * 播放一个点击。
-   * @param maxVolume 是否固定用最大音量（预备拍使用），忽略静音/音量设置。
+   * @param maxVolume 是否固定用最大音量（预备拍按设置决定），为真时忽略静音/音量设置。
    */
   private scheduleClick(
     accent: boolean,
@@ -197,8 +203,8 @@ export class Metronome {
     const beat = segmentBeatDuration(segment)
     const count = segment.numerator
     for (let i = 0; i < count; i += 1) {
-      // 预备拍固定用最大音量，忽略静音/音量设置。
-      const osc = this.scheduleClick(i === 0, i * beat, true)
+      // 预备拍默认固定用最大音量；关闭该选项后跟随节拍器音量与静音状态。
+      const osc = this.scheduleClick(i === 0, i * beat, this.countInMaxVolume)
       if (osc) {
         this.countInOscs.push(osc)
       }

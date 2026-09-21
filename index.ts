@@ -66,6 +66,10 @@ const options = defineOptionsMetadata({
     displayName: '循环段禁用预备拍',
     defaultValue: false,
   },
+  countInMaxVolume: {
+    displayName: '预备拍使用最大音量',
+    defaultValue: true,
+  },
   promptMetronomeVolume: {
     displayName: '弹窗设置节拍器音量',
     defaultValue: false,
@@ -106,6 +110,9 @@ let settingsRef: ComponentSettings<BarLineOptions>['options'] | null = null
 let listenerHandlers: Array<() => void> | null = null
 
 const isLoopCountInDisabled = () => Boolean(settingsRef?.loopDisableCountIn)
+
+// 默认开启：settingsRef 尚未就绪时按开启处理。
+const isCountInMaxVolume = () => settingsRef?.countInMaxVolume !== false
 
 const beatIconName = (n: number) => (n >= 0 ? `barline-beat-${n}` : `barline-beat-neg${-n}`)
 
@@ -446,6 +453,7 @@ const runCountIn = (segment: TimeSignatureSegment, onComplete: () => void) => {
     onComplete()
     return
   }
+  metronome.setCountInMaxVolume(isCountInMaxVolume())
   metronome.countIn(
     segment,
     beat => {
