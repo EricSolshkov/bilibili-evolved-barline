@@ -44,3 +44,33 @@ test('invalid ranges, unavailable identity, duplicate segments and overlong link
   const large = createBarlistTask(config, { ...video, duration: 86400 }, 1, 1000, 6)
   assert.throws(() => createHandoffUrl('http://localhost:5000', large), /JSON/)
 })
+
+test('automatic export extends all tempo and meter segments to the last complete bar', () => {
+  const changed = { ...config, segments: [
+    config.segments[0],
+    { startBar: 3, bpm: 60, numerator: 3, denominator: 4 },
+    { startBar: 5, bpm: 120, numerator: 6, denominator: 8 },
+  ] }
+  const task = createBarlistTask(changed, { ...video, duration: 15 })
+  assert.deepEqual(task.bars.map(b => b.number), [1, 2, 3, 4, 5, 6])
+  assert.equal(task.bars.at(-1).end, 14.25)
+  assert.equal(task.taskId, `${video.bvid}-${video.cid}-1-6`)
+  for (const bar of task.bars) {
+    assert.equal(bar.start, barStartTime(changed, bar.number))
+    assert.equal(bar.end, barStartTime(changed, bar.number + 1))
+  }
+})
+
+test('automatic export includes exact endings, excludes partial bars and handles floating point', () => {
+  const cfg = { ...config, segments: [{ firstBeatTime: 0.177, bpm: 150, numerator: 4, denominator: 4 }] }
+  for (const duration of [185.9, 185.777, 185.7769]) {
+    const task = createBarlistTask(cfg, { ...video, duration })
+    assert.equal(task.bars.length, duration < 185.777 ? 115 : 116)
+    assert.ok(task.bars.at(-1).end <= duration)
+  }
+  assert.throws(() => createBarlistTask(cfg, { ...video, duration: 1 }), /完整小节/)
+  assert.throws(() => createBarlistTask(cfg, { ...video, duration: Infinity }), /时长/)
+  assert.throws(() => createBarlistTask(cfg, { ...video, duration: NaN }), /时长/)
+  assert.equal(createBarlistTask(cfg, { ...video, duration: 8000.177 }).bars.length, 5000)
+  assert.throws(() => createBarlistTask(cfg, { ...video, duration: 8001.777 }), /5000/)
+})
