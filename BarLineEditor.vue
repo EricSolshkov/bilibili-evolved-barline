@@ -142,6 +142,20 @@
       </span>
     </div>
 
+    <fieldset class="barline-handoff">
+      <legend>发送到 BiliTabCapture</legend>
+      <label>起始小节 <input v-model.number="handoffFirst" type="number" min="1" step="1"></label>
+      <label>结束小节 <input v-model.number="handoffLast" type="number" min="1" step="1" placeholder="必填"></label>
+      <label>谱线 / 弦数
+        <select v-model.number="handoffStrings"><option v-for="n in [4, 5, 6, 7]" :key="n" :value="n">{{ n }} 弦</option></select>
+      </label>
+      <label>本地应用地址 <input v-model="handoffAddress" type="url" placeholder="http://127.0.0.1:5000"></label>
+      <p>先启动 BiliTabCapture。未启动或任务较大时，可导出 JSON 文件后拖入应用。调弦在后续转谱时确认。</p>
+      <button type="button" @click="sendHandoff">打开并发送</button>
+      <button type="button" @click="downloadHandoff">导出任务 JSON</button>
+      <p role="status">{{ handoffMessage }}</p>
+    </fieldset>
+
     <div class="barline-actions">
       <button v-if="hasConfig" type="button" class="danger" @click="deleteAll">删除配置</button>
       <button type="button" @click="cancel">关闭</button>
@@ -150,6 +164,7 @@
 </template>
 
 <script lang="ts">
+import { createBarlistTask, createHandoffUrl } from './handoff'
 import {
   BarConfig,
   BPM_MAX,
@@ -171,6 +186,7 @@ export default Vue.extend({
   name: 'BarLineEditor',
   props: {
     video: { type: Object, required: true },
+    handoffVideo: { type: Object, required: true },
     initial: { type: Object, required: true },
     hasConfig: { type: Boolean, default: false },
     onDelete: { type: Function, required: true },
@@ -181,6 +197,11 @@ export default Vue.extend({
     const normalized = normalizeConfig(this.initial as BarConfig)
     return {
       segments: normalized.segments.map(s => ({ ...s })) as TimeSignatureSegment[],
+      handoffFirst: 1,
+      handoffLast: '' as number | string,
+      handoffStrings: 6,
+      handoffAddress: localStorage.getItem('barline.captureAddress') || 'http://127.0.0.1:5000',
+      handoffMessage: '',
       metronomeMuted: normalized.metronomeMuted,
       metronomeVolume: normalized.metronomeVolume,
       tapTimes: [] as number[],
@@ -239,6 +260,32 @@ export default Vue.extend({
     }
   },
   methods: {
+    buildHandoff() {
+      return createBarlistTask(this.draft, {
+        ...this.handoffVideo,
+        duration: (this.video as HTMLVideoElement).duration,
+      } as Parameters<typeof createBarlistTask>[1], this.handoffFirst, Number(this.handoffLast), this.handoffStrings)
+    },
+    sendHandoff() {
+      try {
+        const url = createHandoffUrl(this.handoffAddress, this.buildHandoff())
+        localStorage.setItem('barline.captureAddress', this.handoffAddress)
+        window.open(url, '_blank', 'noopener,noreferrer')
+        this.handoffMessage = '已请求打开本地应用；如未打开，请检查应用地址或导出 JSON。'
+      } catch (e) { this.handoffMessage = (e as Error).message }
+    },
+    downloadHandoff() {
+      try {
+        const task = this.buildHandoff()
+        const url = URL.createObjectURL(new Blob([JSON.stringify(task, null, 2)], { type: 'application/json' }))
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${task.taskId}.barlist.json`
+        a.click()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+        this.handoffMessage = '任务文件已导出，可拖入 BiliTabCapture。'
+      } catch (e) { this.handoffMessage = (e as Error).message }
+    },
     formatTime,
     onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {

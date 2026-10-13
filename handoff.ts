@@ -1,0 +1,80 @@
+import type { BarConfig } from './config'
+
+export interface HandoffVideo {
+  bvid: string
+  cid: string
+  page: number
+  title: string
+  duration: number
+}
+
+/** quarterBpm is always quarter-note tempo, including 6/8 and other meters. */
+export const createBarlistTask = (
+  config: BarConfig, video: HandoffVideo, firstBar: number, lastBar: number, stringCount: number,
+) => {
+  if (!/^BV[0-9A-Za-z]{10}$/.test(video.bvid) || !/^[1-9][0-9]*$/.test(video.cid)) {
+    throw new Error('无法读取当前视频 BV/cid，请等待视频加载完成')
+  }
+  if (![firstBar, lastBar, stringCount, video.page].every(Number.isInteger) ||
+      firstBar < 1 || lastBar < firstBar || lastBar > 100000 || lastBar - firstBar >= 5000 ||
+      stringCount < 4 || stringCount > 7 || video.page < 1) {
+    throw new Error('请填写有效的起止小节（最多 5000 个）和 4–7 弦')
+  }
+  if (!Number.isFinite(video.duration) || video.duration <= 0) {
+    throw new Error('视频时长尚未加载')
+  }
+  if (!config.segments.length) throw new Error('请先配置拍号段')
+  let time = config.segments[0].firstBeatTime ?? 0
+  if (!Number.isFinite(time) || time < 0) throw new Error('第一拍时间无效')
+  const segments = config.segments.map((segment, i) => {
+    const startBar = i === 0 ? 1 : segment.startBar!
+    if (!Number.isInteger(startBar) || startBar < 1 ||
+        (i > 0 && startBar <= (i === 1 ? 1 : config.segments[i - 1].startBar!)) ||
+        !Number.isFinite(segment.bpm) || segment.bpm <= 0 ||
+        !Number.isInteger(segment.numerator) || segment.numerator < 1 ||
+        ![2, 4, 8, 16].includes(segment.denominator)) {
+      throw new Error('拍号段必须按生效小节递增，BPM 和拍号必须有效')
+    }
+    if (i > 0) {
+      const previous = config.segments[i - 1]
+      const previousBar = i === 1 ? 1 : previous.startBar!
+      time += (startBar - previousBar) * previous.numerator * 60 / previous.bpm * 4 / previous.denominator
+    }
+    return { ...segment, startBar, startTime: time }
+  })
+  const bars = []
+  for (let n = firstBar; n <= lastBar; n++) {
+    const seg = [...segments].reverse().find(s => s.startBar <= n)!
+    const duration = seg.numerator * 60 / seg.bpm * 4 / seg.denominator
+    const start = seg.startTime + (n - seg.startBar) * duration
+    const end = start + duration
+    if (end > video.duration + 0.001) throw new Error(`第 ${n} 小节超出视频时长，请调整结束小节或拍号段`)
+    bars.push({ id: `bar-${n}`, order: bars.length + 1, number: n,
+      start: Math.round(start * 1e6) / 1e6, end: Math.round(end * 1e6) / 1e6,
+      timeSignature: [seg.numerator, seg.denominator], quarterBpm: seg.bpm })
+  }
+  return {
+    schema: 'bili-tab-capture/barlist', version: 1,
+    taskId: `${video.bvid}-${video.cid}-${firstBar}-${lastBar}`, revision: 1,
+    video: { bvid: video.bvid, cid: video.cid, page: video.page, title: video.title },
+    // Do not infer guitar/bass tuning from the number of strings alone.
+    instrument: { stringCount, tuningMidi: null, capo: 0 }, bars,
+  }
+}
+
+export const createHandoffUrl = (address: string, task: ReturnType<typeof createBarlistTask>) => {
+  const url = new URL(address)
+  if (!['http:', 'https:'].includes(url.protocol) ||
+      !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || url.username || url.password) {
+    throw new Error('请填写本机 BiliTabCapture 地址，例如 http://127.0.0.1:5000')
+  }
+  url.pathname = '/'
+  url.search = ''
+  const bytes = new TextEncoder().encode(JSON.stringify(task))
+  let binary = ''
+  bytes.forEach(b => { binary += String.fromCharCode(b) })
+  const encoded = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  if (encoded.length > 60000) throw new Error('任务较大，请使用「导出任务 JSON」交接')
+  url.hash = `barlist=${encoded}`
+  return url.toString()
+}

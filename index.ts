@@ -223,6 +223,12 @@ export const openEditor = () => {
     contentProps: {
       video,
       initial,
+      handoffVideo: {
+        bvid: String(unsafeWindow.bvid || ''),
+        cid: String(unsafeWindow.cid || ''),
+        page: Number(new URL(location.href).searchParams.get('p') || 1),
+        title: document.title,
+      },
       hasConfig: Boolean(currentConfig),
       // 配置实时生效：每次编辑立即保存并应用，无需「保存」按钮。
       onPreview: (draft: BarConfig) => {
