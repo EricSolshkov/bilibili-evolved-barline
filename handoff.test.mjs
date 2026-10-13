@@ -18,13 +18,10 @@ test('timeline agrees with existing barline, including tempo and 6/8 changes', (
   }
 })
 
-test('4–7 strings are preserved without guessing tuning', () => {
-  for (const n of [4, 5, 6, 7]) {
-    const task = createBarlistTask(config, video, 1, 2, n)
-    assert.equal(task.instrument.stringCount, n)
-    assert.equal(task.instrument.tuningMidi, null)
-  }
-  assert.throws(() => createBarlistTask(config, video, 1, 2, 8))
+test('barlist contains timing only, without notation settings', () => {
+  const task = createBarlistTask(config, video)
+  assert.equal('instrument' in task, false)
+  assert.equal('stringCount' in task, false)
 })
 
 test('handoff URL roundtrips Unicode and all bar data; keeps data out of query', () => {

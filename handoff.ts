@@ -10,16 +10,16 @@ export interface HandoffVideo {
 
 /** quarterBpm is always quarter-note tempo, including 6/8 and other meters. */
 export const createBarlistTask = (
-  config: BarConfig, video: HandoffVideo, firstBar = 1, lastBar?: number, stringCount = 6,
+  config: BarConfig, video: HandoffVideo, firstBar = 1, lastBar?: number,
 ) => {
   if (!/^BV[0-9A-Za-z]{10}$/.test(video.bvid) || !/^[1-9][0-9]*$/.test(video.cid)) {
     throw new Error('无法读取当前视频 BV/cid，请等待视频加载完成')
   }
-  if (![firstBar, stringCount, video.page].every(Number.isInteger) ||
+  if (![firstBar, video.page].every(Number.isInteger) ||
       firstBar < 1 || firstBar > 100000 ||
       (lastBar !== undefined && (!Number.isInteger(lastBar) || lastBar < firstBar || lastBar > 100000 || lastBar - firstBar >= 5000)) ||
-      stringCount < 4 || stringCount > 7 || video.page < 1) {
-    throw new Error('请填写有效的起止小节（最多 5000 个）和 4–7 弦')
+      video.page < 1) {
+    throw new Error('请填写有效的起止小节（最多 5000 个）')
   }
   if (!Number.isFinite(video.duration) || video.duration <= 0) {
     throw new Error('视频时长尚未加载')
@@ -65,8 +65,7 @@ export const createBarlistTask = (
     schema: 'bili-tab-capture/barlist', version: 1,
     taskId: `${video.bvid}-${video.cid}-${firstBar}-${bars[bars.length - 1].number}`, revision: 1,
     video: { bvid: video.bvid, cid: video.cid, page: video.page, title: video.title },
-    // Do not infer guitar/bass tuning from the number of strings alone.
-    instrument: { stringCount, tuningMidi: null, capo: 0 }, bars,
+    bars,
   }
 }
 
