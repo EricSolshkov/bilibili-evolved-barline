@@ -58,6 +58,59 @@ test('automatic export extends all tempo and meter segments to the last complete
   }
 })
 
+test('out-of-order meter changes export the playback timeline without reordering the project', () => {
+  const changed = { ...config, segments: [
+    config.segments[0],
+    { startBar: 7, bpm: 120, numerator: 5, denominator: 8 },
+    { startBar: 3, bpm: 60, numerator: 3, denominator: 4 },
+    { startBar: 5, bpm: 120, numerator: 6, denominator: 8 },
+  ] }
+  const original = structuredClone(changed)
+  const clip = { ...video, duration: 18.5 }
+  const sorted = { ...changed, segments: [changed.segments[0], ...changed.segments.slice(1).sort((a, b) => a.startBar - b.startBar)] }
+  const task = createBarlistTask(changed, clip)
+  assert.deepEqual(task, createBarlistTask(sorted, clip))
+  assert.deepEqual(task.bars.map(b => b.timeSignature), [[4, 4], [4, 4], [3, 4], [3, 4], [6, 8], [6, 8], [5, 8], [5, 8], [5, 8]])
+  for (const bar of task.bars) {
+    assert.equal(bar.start, barStartTime(changed, bar.number))
+    assert.equal(bar.end, barStartTime(changed, bar.number + 1))
+  }
+  assert.deepEqual(createBarlistTask(changed, clip, 4, 8).bars.map(b => b.number), [4, 5, 6, 7, 8])
+  assert.deepEqual(changed, original)
+})
+
+test('sorting meter changes still rejects duplicate bars and invalid segment fields', () => {
+  for (const invalid of [
+    { startBar: 3 }, { startBar: 1 }, { startBar: 0 }, { startBar: 2.5 },
+    { startBar: undefined }, { startBar: NaN }, { startBar: Infinity },
+    { bpm: 0 }, { bpm: NaN }, { bpm: Infinity },
+    { numerator: 0 }, { numerator: 1.5 }, { denominator: 3 },
+  ]) {
+    const changed = { ...config, segments: [
+      config.segments[0],
+      { ...config.segments[1], startBar: 5, ...invalid },
+      config.segments[1],
+    ] }
+    assert.throws(() => createBarlistTask(changed, video), /拍号段/)
+  }
+})
+
+test('BV1rERMYNEJo reports the two conflicting meter rows at bar 12', () => {
+  const project = { ...config, segments: [
+    { firstBeatTime: 4.6, bpm: 126, numerator: 7, denominator: 4 },
+    ...[
+      [4, 8, 4], [5, 7, 4], [12, 8, 4], [12, 4, 4],
+      [52, 7, 8], [53, 5, 8], [54, 7, 8], [55, 5, 8], [56, 4, 4],
+      [57, 7, 8], [58, 5, 8], [59, 7, 8], [60, 5, 8], [61, 4, 4],
+      [188, 7, 4], [202, 4, 4],
+    ].map(([startBar, numerator, denominator]) => ({ startBar, numerator, denominator, bpm: 126 })),
+  ] }
+  assert.throws(
+    () => createBarlistTask(project, { ...video, bvid: 'BV1rERMYNEJo', cid: '28728819866' }),
+    /第 4、5 个拍号段都从第 12 小节生效/,
+  )
+})
+
 test('automatic export includes exact endings, excludes partial bars and handles floating point', () => {
   const cfg = { ...config, segments: [{ firstBeatTime: 0.177, bpm: 150, numerator: 4, denominator: 4 }] }
   for (const duration of [185.9, 185.777, 185.7769]) {

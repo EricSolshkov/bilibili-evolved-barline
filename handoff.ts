@@ -27,19 +27,26 @@ export const createBarlistTask = (
   if (!config.segments.length) throw new Error('请先配置拍号段')
   let time = config.segments[0].firstBeatTime ?? 0
   if (!Number.isFinite(time) || time < 0) throw new Error('第一拍时间无效')
-  const segments = config.segments.map((segment, i) => {
+  // The editor keeps insertion order; playback sorts by the effective bar.
+  // Validate before sorting so malformed positions cannot affect the ordering.
+  const orderedSegments = config.segments.map((segment, i) => {
     const startBar = i === 0 ? 1 : segment.startBar!
     if (!Number.isInteger(startBar) || startBar < 1 ||
-        (i > 0 && startBar <= (i === 1 ? 1 : config.segments[i - 1].startBar!)) ||
         !Number.isFinite(segment.bpm) || segment.bpm <= 0 ||
         !Number.isInteger(segment.numerator) || segment.numerator < 1 ||
         ![2, 4, 8, 16].includes(segment.denominator)) {
-      throw new Error('拍号段必须按生效小节递增，BPM 和拍号必须有效')
+      throw new Error(`第 ${i + 1} 个拍号段无效：生效小节须为正整数，BPM 须为正数，拍号须有效`)
     }
+    return { ...segment, startBar, editorIndex: i + 1 }
+  }).sort((a, b) => a.startBar - b.startBar)
+  const segments = orderedSegments.map((segment, i) => {
+    const { startBar } = segment
     if (i > 0) {
-      const previous = config.segments[i - 1]
-      const previousBar = i === 1 ? 1 : previous.startBar!
-      time += (startBar - previousBar) * previous.numerator * 60 / previous.bpm * 4 / previous.denominator
+      const previous = orderedSegments[i - 1]
+      if (startBar === previous.startBar) {
+        throw new Error(`第 ${previous.editorIndex}、${segment.editorIndex} 个拍号段都从第 ${startBar} 小节生效，请修正重复的生效小节`)
+      }
+      time += (startBar - previous.startBar) * previous.numerator * 60 / previous.bpm * 4 / previous.denominator
     }
     return { ...segment, startBar, startTime: time }
   })
