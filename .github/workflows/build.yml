@@ -1,0 +1,68 @@
+name: Test and build barline component
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: barline-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --test handoff.test.mjs
+      - name: Check out pinned Bilibili Evolved builder
+        uses: actions/checkout@v4
+        with:
+          repository: the1812/Bilibili-Evolved
+          ref: fa06dcec095dbccaba82f50ae2318c8d61c26671
+          path: .build-framework
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.3.0"
+      - name: Install locked framework dependencies
+        working-directory: .build-framework
+        run: pnpm install --frozen-lockfile
+      - name: Install locked registry dependencies
+        working-directory: .build-framework/registry
+        run: pnpm install --frozen-lockfile
+      - run: node scripts/prepare-build.mjs
+      - name: Compile installable component
+        working-directory: .build-framework
+        run: pnpm exec webpack --config registry/webpack/barline-ci.ts --bail
+      - name: Collect and check component
+        run: |
+          mkdir -p dist
+          cp .build-framework/registry/dist/components/video/barline.js dist/barline.js
+          node --check dist/barline.js
+          test -s dist/barline.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: barline-component
+          path: dist/barline.js
+          if-no-files-found: error
+          retention-days: 30
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: barline-component
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/barline.js
+          generate_release_notes: true
